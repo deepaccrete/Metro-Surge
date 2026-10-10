@@ -1,0 +1,8 @@
+# Local / per-machine config — not committed (local LLM endpoint & model).
+# Copy config.example.js → config.js to set yours.
+config.js
+.env
+.env.*
+
+# OS cruft
+.DS_Store

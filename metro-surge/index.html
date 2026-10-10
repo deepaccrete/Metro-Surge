@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MetroSurge — Gujarat Metro Crowd Intelligence</title>
+  <meta name="description" content="MetroSurge — AI crowd management system for Gujarat Metro stadium surge events. Built for DevFest Gandhinagar Metro Hackathon (PS-05)." />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🚇</text></svg>" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="MetroSurge — Gujarat Metro Crowd Intelligence" />
+  <meta property="og:description" content="Generate a complete control-room crowd management plan for stadium & festival surge events in under 10 seconds." />
+  <meta property="og:site_name" content="MetroSurge" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            /* driven by CSS variables → supports light/dark toggle + opacity modifiers */
+            bg:      'rgb(var(--c-bg) / <alpha-value>)',
+            card:    'rgb(var(--c-card) / <alpha-value>)',
+            borderc: 'rgb(var(--c-borderc) / <alpha-value>)',
+            accent:  'rgb(var(--c-accent) / <alpha-value>)',
+            accent2: 'rgb(var(--c-accent2) / <alpha-value>)',
+            ok:      'rgb(var(--c-ok) / <alpha-value>)',
+            warn:    'rgb(var(--c-warn) / <alpha-value>)',
+            txt:     'rgb(var(--c-txt) / <alpha-value>)',
+            txt2:    'rgb(var(--c-txt2) / <alpha-value>)',
+          },
+        },
+      },
+    };
+  </script>
+  <script>
+    /* Apply saved theme before first paint (default = light / brand) */
+    try { if (localStorage.getItem('metrosurge_theme') === 'dark') document.documentElement.classList.add('dark'); } catch (e) {}
+  </script>
+
+  <style>
+    /* ─── THEME TOKENS (RGB channels) ─── */
+    :root {
+      --c-bg: 245 247 250;  --c-card: 255 255 255;  --c-borderc: 226 232 240;
+      --c-accent: 239 125 26;  --c-accent2: 29 78 216;
+      --c-ok: 22 163 74;  --c-warn: 217 119 6;
+      --c-txt: 30 41 59;  --c-txt2: 100 116 139;
+      --c-track: 238 242 247;  --c-thumb: 203 213 225;  --c-thumb-h: 148 163 184;
+      --elev: 0 1px 3px rgba(15,23,42,.08), 0 4px 16px -8px rgba(15,23,42,.14);
+      color-scheme: light;
+    }
+    html.dark {
+      --c-bg: 15 23 42;  --c-card: 30 41 59;  --c-borderc: 51 65 85;
+      --c-accent: 249 115 22;  --c-accent2: 59 130 246;
+      --c-ok: 34 197 94;  --c-warn: 234 179 8;
+      --c-txt: 241 245 249;  --c-txt2: 148 163 184;
+      --c-track: 15 23 42;  --c-thumb: 51 65 85;  --c-thumb-h: 71 85 105;
+      --elev: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px -10px rgba(0,0,0,.6);
+      color-scheme: dark;
+    }
+
+    html, body { background: rgb(var(--c-bg)); color: rgb(var(--c-txt)); }
+    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    html { transition: background-color .3s ease; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: rgb(var(--c-track)); }
+    ::-webkit-scrollbar-thumb { background: rgb(var(--c-thumb)); border-radius: 6px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgb(var(--c-thumb-h)); }
+
+    /* Pill radio buttons (event type) */
+    .pill span {
+      display: inline-block;
+      font-size: 0.8rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 9999px;
+      border: 1px solid rgb(var(--c-borderc));
+      background: rgb(var(--c-bg));
+      color: rgb(var(--c-txt2));
+      cursor: pointer;
+      transition: all .15s ease;
+      user-select: none;
+    }
+    .pill span:hover { border-color: rgb(var(--c-accent)); color: rgb(var(--c-txt)); }
+    .pill input:focus-visible + span { outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px; }
+
+    /* Section headings + chips (Phase 4) */
+    .section-h { font-size: 1rem; font-weight: 700; color: rgb(var(--c-txt)); margin-bottom: 0.75rem; }
+    .chip {
+      display: inline-flex; align-items: center;
+      padding: 0.25rem 0.6rem; border-radius: 9999px;
+      background: rgb(var(--c-bg)); border: 1px solid rgb(var(--c-borderc)); color: rgb(var(--c-txt2));
+    }
+
+    /* Animations */
+    @keyframes msFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .ms-fade { animation: msFade .4s ease both; }
+    @keyframes msPulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.12); } }
+    .ms-pulse { animation: msPulse 2s ease-in-out infinite; }
+    .ms-glow { box-shadow: 0 0 0 1px rgb(var(--c-accent)), 0 0 18px -2px rgb(var(--c-accent) / .5); }
+
+    /* Soft card elevation for the two main panels */
+    #inputPanel > div, #outputPanel > div { box-shadow: var(--elev); }
+
+    /* Ripple on generate button */
+    .ms-ripple { position: absolute; border-radius: 9999px; transform: scale(0); background: rgba(255,255,255,.45); animation: msRipple .6s ease-out; pointer-events: none; }
+    @keyframes msRipple { to { transform: scale(4); opacity: 0; } }
+
+    /* ─── PHASE 6 — ADVANCED SYSTEM ─── */
+    @keyframes liveBlink { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+    .live-dot { width: 8px; height: 8px; border-radius: 9999px; background: #ef4444; animation: liveBlink 1s ease-in-out infinite; }
+    .sim-canvas { width: 100%; height: 150px; display: block; border-radius: 10px; background: rgb(var(--c-bg)); }
+    .gauge-track { stroke: rgb(var(--c-borderc)); }
+    input[type="range"].sim-scrub { accent-color: rgb(var(--c-accent)); }
+    .speak-on { color: rgb(var(--c-accent)); }
+    @keyframes soundWave { 0%,100% { transform: scaleY(.4);} 50% { transform: scaleY(1);} }
+    .sound-bar { display:inline-block; width:2px; margin:0 1px; height:10px; background: currentColor; animation: soundWave .6s ease-in-out infinite; }
+
+    /* ─── PRINT ─── */
+    @media print {
+      :root { color-scheme: light; }
+      html, body { background: #fff !important; color: #000 !important; }
+      nav, footer, #inputPanel, .no-print, #btnSpinner { display: none !important; }
+      main { max-width: none !important; padding: 0 !important; }
+      main > div { display: block !important; }
+      #outputPanel { break-inside: avoid; }
+      #planRoot { color: #000 !important; }
+      #planRoot .bg-card, #planRoot .bg-bg { background: #fff !important; }
+      #planRoot * { color: #000 !important; border-color: #999 !important; }
+      #planRoot .bg-gradient-to-r { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .section-h { border-bottom: 1px solid #000; padding-bottom: 2px; }
+      .ann-panel.hidden { display: grid !important; }  /* print all announcement tabs */
+      #printHeader { display: flex !important; align-items: center; gap: 10px; }
+      #printFooter { display: block !important; }
+    }
+    #printHeader, #printFooter { display: none; }
+  </style>
+</head>
+
+<body class="min-h-screen bg-bg text-txt flex flex-col">
+
+  <!-- ══════════════ NAVBAR ══════════════ -->
+  <nav class="border-b-2 border-accent/40 bg-card/80 backdrop-blur shadow-sm sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <img src="assets/gmrc-logo.png" alt="Gujarat Metro — Aapni Metro (GMRC)"
+          class="h-11 w-auto shrink-0"
+          onerror="this.outerHTML='&lt;span class=\'text-3xl leading-none\'&gt;🚇&lt;/span&gt;'" />
+        <div class="h-9 w-px bg-borderc hidden sm:block"></div>
+        <div class="leading-tight">
+          <h1 class="text-xl font-extrabold text-accent tracking-tight">MetroSurge</h1>
+          <p class="text-xs text-txt2">Gujarat Metro · Crowd Intelligence System</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+      <button id="themeToggle" type="button" title="Toggle light / dark"
+        class="text-lg leading-none w-9 h-9 rounded-full border border-borderc bg-card hover:border-accent transition flex items-center justify-center">🌙</button>
+      <span id="devfestBadge" class="group relative text-[11px] font-semibold px-3 py-1 rounded-full bg-accent/15 text-accent border border-accent/30 whitespace-nowrap cursor-default">
+        DevFest Gandhinagar 2026
+        <!-- shortcut tooltip -->
+        <span class="pointer-events-none absolute right-0 top-full mt-2 z-50 hidden group-hover:block w-max rounded-lg bg-bg border border-borderc shadow-xl p-3 text-left font-mono text-[11px] text-txt2 normal-case">
+          <span class="block text-txt font-sans font-semibold mb-1.5 text-xs">⌨️ Shortcuts</span>
+          <span class="block"><span class="text-accent">Ctrl+Shift+D</span>  Demo (auto-fill + generate)</span>
+          <span class="block"><span class="text-accent">Ctrl+Shift+P</span>  Print current plan</span>
+          <span class="block"><span class="text-accent">Ctrl+Shift+R</span>  Reset form</span>
+        </span>
+      </span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ══════════════ MAIN ══════════════ -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+    <div id="printHeader" style="border-bottom:2px solid #000;margin-bottom:12px;padding-bottom:6px;">
+      <img src="assets/gmrc-logo.png" alt="GMRC" style="height:34px;width:auto;" onerror="this.style.display='none'" />
+      <strong style="font-size:15px;">Gujarat Metro — Confidential Operations Document</strong>
+      <span style="margin-left:auto;font-size:12px;">MetroSurge Crowd Management Plan</span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[minmax(340px,420px)_1fr] gap-6 items-start">
+
+      <!-- LEFT: Input panel -->
+      <section id="inputPanel" aria-label="Event input">
+        <div class="rounded-xl bg-card border border-borderc border-l-4 border-l-accent p-6 shadow-xl">
+          <h2 class="text-lg font-bold text-txt mb-5 flex items-center gap-2">
+            <span>📋</span> Event Details
+          </h2>
+
+          <form id="eventForm" class="space-y-5" novalidate>
+
+            <!-- 1. EVENT NAME -->
+            <div>
+              <label for="eventName" class="block text-sm font-medium text-txt mb-1.5">Event Name</label>
+              <input id="eventName" name="eventName" type="text" autocomplete="off"
+                placeholder="e.g. Navratri Night 5 - Riverfront"
+                class="w-full rounded-lg bg-bg border border-borderc px-3 py-2.5 text-sm text-txt placeholder-txt2/60 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+              <p class="text-xs text-txt2 mt-1">Cricket match, festival, concert...</p>
+              <p class="hidden text-xs text-red-600 mt-1" data-error-for="eventName"></p>
+            </div>
+
+            <!-- 2. VENUE / STATION -->
+            <div>
+              <label for="venue" class="block text-sm font-medium text-txt mb-1.5">Venue / Station</label>
+              <select id="venue" name="venue"
+                class="w-full rounded-lg bg-bg border border-borderc px-3 py-2.5 text-sm text-txt focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition">
+                <option value="" disabled selected>Select a venue…</option>
+                <option value="Riverfront (Sabarmati)" data-station="Kalupur / Dariapur">Riverfront (Sabarmati) → Kalupur / Dariapur</option>
+                <option value="Narendra Modi Stadium" data-station="Motera">Narendra Modi Stadium → Motera</option>
+                <option value="GMDC Ground" data-station="Usmanpura">GMDC Ground → Usmanpura</option>
+                <option value="Science City" data-station="Science City Metro">Science City → Science City Metro</option>
+                <option value="Custom Location" data-station="">Custom Location…</option>
+              </select>
+              <p class="hidden text-xs text-red-600 mt-1" data-error-for="venue"></p>
+
+              <!-- Custom station field (hidden unless Custom selected) -->
+              <div id="customVenueWrap" class="hidden mt-3">
+                <label for="customStation" class="block text-sm font-medium text-txt mb-1.5">Custom Station Name</label>
+                <input id="customStation" name="customStation" type="text" autocomplete="off"
+                  placeholder="e.g. Thaltej Gam"
+                  class="w-full rounded-lg bg-bg border border-borderc px-3 py-2.5 text-sm text-txt placeholder-txt2/60 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+              </div>
+            </div>
+
+            <!-- 3. EXPECTED ATTENDANCE -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label for="attendance" class="text-sm font-medium text-txt">Expected Attendance</label>
+                <span id="attendanceLabel" class="text-sm font-bold text-accent tabular-nums">85,000 people</span>
+              </div>
+              <input id="attendance" name="attendance" type="range" min="1000" max="200000" step="1000" value="85000"
+                class="w-full accent-accent cursor-pointer" />
+              <div class="flex justify-between text-[10px] text-txt2 mt-1">
+                <span>1K</span><span>200K</span>
+              </div>
+            </div>
+
+            <!-- 4. EVENT END TIME -->
+            <div>
+              <label for="endTime" class="block text-sm font-medium text-txt mb-1.5">Event End Time</label>
+              <input id="endTime" name="endTime" type="time" value="22:30"
+                class="w-full rounded-lg bg-bg border border-borderc px-3 py-2.5 text-sm text-txt focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition [color-scheme:light]" />
+              <p class="text-xs text-txt2 mt-1">We'll plan from 60 min before this time</p>
+            </div>
+
+            <!-- 5. EVENT TYPE (pill radios) -->
+            <div>
+              <span class="block text-sm font-medium text-txt mb-2">Event Type</span>
+              <div id="eventTypeGroup" class="flex flex-wrap gap-2">
+                <!-- JS/label pattern: radio hidden, label is the pill -->
+                <label class="pill">
+                  <input type="radio" name="eventType" value="Cricket Match" class="sr-only peer" />
+                  <span class="peer-checked:bg-accent peer-checked:text-white peer-checked:border-accent">🏏 Cricket Match</span>
+                </label>
+                <label class="pill">
+                  <input type="radio" name="eventType" value="Navratri / Festival" class="sr-only peer" checked />
+                  <span class="peer-checked:bg-accent peer-checked:text-white peer-checked:border-accent">🎊 Navratri / Festival</span>
+                </label>
+                <label class="pill">
+                  <input type="radio" name="eventType" value="Concert" class="sr-only peer" />
+                  <span class="peer-checked:bg-accent peer-checked:text-white peer-checked:border-accent">🎵 Concert</span>
+                </label>
+                <label class="pill">
+                  <input type="radio" name="eventType" value="Sports Event" class="sr-only peer" />
+                  <span class="peer-checked:bg-accent peer-checked:text-white peer-checked:border-accent">⚽ Sports Event</span>
+                </label>
+                <label class="pill">
+                  <input type="radio" name="eventType" value="Other" class="sr-only peer" />
+                  <span class="peer-checked:bg-accent peer-checked:text-white peer-checked:border-accent">🎭 Other</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- 6. SEVERITY OVERRIDE (toggle) -->
+            <div class="flex items-center justify-between rounded-lg bg-bg border border-borderc px-3 py-3">
+              <div>
+                <p class="text-sm font-medium text-txt">VIP / High Security Event</p>
+                <p class="text-xs text-txt2">Adds extra security buffer to the plan</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                <input id="isVIP" name="isVIP" type="checkbox" class="sr-only peer" />
+                <div class="w-11 h-6 bg-borderc rounded-full peer peer-checked:bg-accent transition-colors"></div>
+                <div class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+              </label>
+            </div>
+
+            <!-- 7. LOCAL MODEL SETTINGS (collapsible) -->
+            <details class="rounded-lg bg-bg border border-borderc px-3 py-2 group">
+              <summary class="cursor-pointer text-sm font-medium text-txt flex items-center justify-between list-none select-none">
+                <span class="flex items-center gap-2">💻 Local Model Settings</span>
+                <span class="text-txt2 text-xs group-open:rotate-180 transition-transform">▾</span>
+              </summary>
+              <div class="mt-3 pb-1 space-y-2.5">
+                <div>
+                  <label for="llmUrl" class="block text-xs font-medium text-txt2 mb-1">Endpoint (OpenAI-compatible)</label>
+                  <input id="llmUrl" name="llmUrl" type="text" autocomplete="off" spellcheck="false"
+                    placeholder="http://localhost:11434/v1"
+                    class="w-full rounded-lg bg-card border border-borderc px-3 py-2.5 text-sm text-txt placeholder-txt2/60 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+                </div>
+                <div>
+                  <label for="llmModel" class="block text-xs font-medium text-txt2 mb-1">Model name</label>
+                  <input id="llmModel" name="llmModel" type="text" autocomplete="off" spellcheck="false"
+                    placeholder="qwen2.5:7b"
+                    class="w-full rounded-lg bg-card border border-borderc px-3 py-2.5 text-sm text-txt placeholder-txt2/60 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition" />
+                </div>
+                <div class="flex items-center gap-2">
+                  <button id="llmTestBtn" type="button" class="rounded-lg border border-accent/60 text-accent hover:bg-accent/10 text-xs font-medium px-3 py-1.5 transition">🔌 Test connection</button>
+                  <span id="llmStatus" class="text-xs text-txt2"></span>
+                </div>
+                <p class="text-xs text-txt2">
+                  Runs 100% locally — e.g. <span class="font-mono">Ollama</span> (<span class="font-mono">localhost:11434/v1</span>) or LM Studio (<span class="font-mono">localhost:1234/v1</span>). No key, no cloud. Leave blank to use Demo Mode.
+                </p>
+              </div>
+            </details>
+
+            <!-- 8. GENERATE + DEMO buttons -->
+            <div class="space-y-3 pt-1">
+              <button id="generateBtn" type="submit"
+                class="relative w-full overflow-hidden rounded-lg bg-accent hover:bg-orange-400 active:scale-[.99] text-white font-semibold py-3 transition flex items-center justify-center gap-2 shadow-lg shadow-accent/20">
+                <svg id="btnSpinner" class="hidden animate-spin h-5 w-5 text-white" viewBox="0 0 24 24" fill="none">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+                <span id="btnLabel">⚡ Generate Crowd Management Plan</span>
+              </button>
+
+              <button id="demoBtn" type="button"
+                class="w-full rounded-lg border border-accent/60 text-accent hover:bg-accent/10 font-medium py-2.5 transition">
+                ▶ Try Demo
+              </button>
+            </div>
+
+          </form>
+        </div>
+      </section>
+
+      <!-- RIGHT: Output panel -->
+      <section id="outputPanel" aria-label="Generated plan">
+        <div class="rounded-xl bg-card border border-borderc p-10 min-h-[420px] flex flex-col items-center justify-center text-center">
+          <span class="text-5xl mb-4 opacity-80">🚇</span>
+          <h2 class="text-lg font-semibold text-txt">No plan generated yet</h2>
+          <p class="text-sm text-txt2 mt-2 max-w-sm">
+            Fill in the event details on the left and hit
+            <span class="text-accent font-medium">Generate Crowd Management Plan</span>
+            to see a full control-room surge plan here.
+          </p>
+        </div>
+      </section>
+
+    </div>
+
+    <div id="printFooter" style="border-top:1px solid #000;margin-top:16px;padding-top:6px;font-size:11px;">
+      Gujarat Metro · MetroSurge — generated <span id="printTimestamp"></span>
+    </div>
+  </main>
+
+  <!-- ══════════════ FOOTER ══════════════ -->
+  <footer class="border-t border-borderc bg-card/40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 text-center text-xs text-txt2">
+      Built for Gujarat Metro · DevFest Gandhinagar Metro Hackathon
+    </div>
+  </footer>
+
+  <!-- Optional local config (gitignored). Sets window.LOCAL_LLM_URL / window.LOCAL_LLM_MODEL. Safe to 404 if absent. -->
+  <script src="config.js"></script>
+
+  <!-- ══════════════ APP LOGIC (Phase 3) ══════════════ -->
+  <script>
+  (function () {
+    'use strict';
+
+    /* ─── 1. CONSTANTS & CONFIG ─── */
+    // Local, OpenAI-compatible LLM (Ollama / LM Studio / llama.cpp). No cloud, no key.
+    const DEFAULT_LLM_URL = 'http://localhost:11434/v1';   // Ollama default
+    const DEFAULT_LLM_MODEL = 'qwen2.5:7b';
+    const LS_KEY_URL = 'metrosurge_llm_url';
+    const LS_KEY_MODEL = 'metrosurge_llm_model';
+    const LS_KEY_PLAN = 'metrosurge_last_plan';
+
+    // Shorthand DOM helpers
+    const $ = (sel) => document.querySelector(sel);
+    const el = {
+      form: $('#eventForm'),
+      eventName: $('#eventName'),
+      venue: $('#venue'),
+      customWrap: $('#customVenueWrap'),
+      customStation: $('#customStation'),
+      attendance: $('#attendance'),
+      attendanceLabel: $('#attendanceLabel'),
+      endTime: $('#endTime'),
+      isVIP: $('#isVIP'),
+      llmUrl: $('#llmUrl'),
+      llmModel: $('#llmModel'),
+      llmTestBtn: $('#llmTestBtn'),
+      llmStatus: $('#llmStatus'),
+      generateBtn: $('#generateBtn'),
+      btnSpinner: $('#btnSpinner'),
+      btnLabel: $('#btnLabel'),
+      demoBtn: $('#demoBtn'),
+      output: $('#outputPanel'),
+    };
+
+    const fmtNum = (n) => Number(n).toLocaleString('en-IN');
+
+    /* ─── UI WIRING ─── */
+
+    // Local LLM settings: localStorage → config.js → built-in defaults; persist on change
+    function getLlmUrl() { return (el.llmUrl.value || '').trim().replace(/\/+$/, ''); }
+    el.llmUrl.value = localStorage.getItem(LS_KEY_URL) || (window.LOCAL_LLM_URL || DEFAULT_LLM_URL);
+    el.llmModel.value = localStorage.getItem(LS_KEY_MODEL) || (window.LOCAL_LLM_MODEL || DEFAULT_LLM_MODEL);
+    el.llmUrl.addEventListener('input', () => localStorage.setItem(LS_KEY_URL, el.llmUrl.value.trim()));
+    el.llmModel.addEventListener('input', () => localStorage.setItem(LS_KEY_MODEL, el.llmModel.value.trim()));
+
+    // Test-connection button → lists models at the endpoint
+    el.llmTestBtn.addEventListener('click', async () => {
+      const base = getLlmUrl();
+      el.llmStatus.textContent = 'Checking…'; el.llmStatus.className = 'text-xs text-txt2';
+      if (!base) { el.llmStatus.textContent = 'Enter an endpoint first.'; return; }
+      try {
+        const r = await fetch(base + '/models');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        const ids = (j.data || j.models || []).map(m => m.id || m.name).filter(Boolean);
+        const has = ids.includes(el.llmModel.value.trim());
+        el.llmStatus.innerHTML = '✓ Connected · ' + ids.length + ' model(s)' + (has ? '' : ' · model not found');
+        el.llmStatus.className = 'text-xs ' + (has ? 'text-ok' : 'text-warn');
+      } catch (e) {
+        el.llmStatus.textContent = '✗ Not reachable — is the server running?';
+        el.llmStatus.className = 'text-xs text-red-600';
+      }
+    });
+
+    // Attendance slider → live animated label
+    let attnDisplay = Number(el.attendance.value);
+    function renderAttendance() {
+      const target = Number(el.attendance.value);
+      // ease the displayed number toward the target for a counting effect
+      const step = () => {
+        const diff = target - attnDisplay;
+        if (Math.abs(diff) < 500) { attnDisplay = target; }
+        else { attnDisplay += diff * 0.25; }
+        el.attendanceLabel.textContent = fmtNum(Math.round(attnDisplay)) + ' people';
+        if (attnDisplay !== target) requestAnimationFrame(step);
+      };
+      step();
+    }
+    el.attendance.addEventListener('input', renderAttendance);
+    renderAttendance();
+
+    // Venue → show custom station field when "Custom Location"
+    el.venue.addEventListener('change', () => {
+      const isCustom = el.venue.value === 'Custom Location';
+      el.customWrap.classList.toggle('hidden', !isCustom);
+      clearError(el.venue);
+    });
+
+    // Clear field error on input
+    el.eventName.addEventListener('input', () => clearError(el.eventName));
+
+    /* ─── VALIDATION HELPERS ─── */
+    function showError(input, msg) {
+      input.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+      const p = document.querySelector(`[data-error-for="${input.id}"]`);
+      if (p) { p.textContent = msg; p.classList.remove('hidden'); }
+    }
+    function clearError(input) {
+      input.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+      const p = document.querySelector(`[data-error-for="${input.id}"]`);
+      if (p) { p.classList.add('hidden'); p.textContent = ''; }
+    }
+
+    /* ─── COLLECT FORM DATA ─── */
+    function collectEventData() {
+      const opt = el.venue.selectedOptions[0];
+      const isCustom = el.venue.value === 'Custom Location';
+      const nearestStation = isCustom
+        ? (el.customStation.value.trim() || 'Custom Station')
+        : (opt ? opt.getAttribute('data-station') : '');
+      const venue = isCustom
+        ? (el.customStation.value.trim() || 'Custom Location')
+        : el.venue.value;
+      return {
+        eventName: el.eventName.value.trim(),
+        venue,
+        nearestStation,
+        attendance: Number(el.attendance.value),
+        endTime: el.endTime.value || '22:30',
+        eventType: (el.form.querySelector('input[name="eventType"]:checked') || {}).value || 'Other',
+        isVIP: el.isVIP.checked ? 'YES' : 'NO',
+      };
+    }
+
+    /* ─── 2. MASTER PROMPT ─── */
+    function buildCrowdManagementPrompt(d) {
+      return `You are MetroSurge, an expert crowd management AI for Gujarat Metro.
+You have deep knowledge of metro operations, crowd flow dynamics,
+and public safety protocols for large events in Ahmedabad/Gandhinagar.
+
+EVENT DETAILS:
+- Event Name: ${d.eventName}
+- Venue: ${d.venue}
+- Nearest Metro Station: ${d.nearestStation}
+- Expected Attendance: ${d.attendance} people
+- Event End Time: ${d.endTime}
+- Event Type: ${d.eventType}
+- High Security: ${d.isVIP}
+
+Generate a COMPLETE crowd management plan as a JSON object.
+
+IMPORTANT: Return ONLY valid JSON, no markdown, no explanation outside JSON.
+
+The JSON must follow this EXACT structure:
+{
+  "summary": {
+    "risk_level": "HIGH/MEDIUM/LOW",
+    "peak_minute": "time when crowd peaks at station",
+    "expected_metro_trips": number,
+    "key_concern": "one sentence about biggest risk",
+    "control_room_brief": "3-line brief for operator"
+  },
+  "timeline": [
+    {
+      "time": "HH:MM",
+      "phase": "phase name",
+      "action": "what to do",
+      "gates": "gate instructions",
+      "train_frequency": "every X minutes",
+      "holding_zones": "where to hold passengers",
+      "staff_count": number,
+      "crowd_level": "LOW/MEDIUM/HIGH/CRITICAL"
+    }
+  ],
+  "gate_plan": {
+    "gates_to_open": ["Gate 1 - Main", "Gate 3 - North"],
+    "gates_to_close": ["Gate 2 - Parking side"],
+    "holding_zones": ["Concourse Level A", "Platform 2 Buffer Zone"],
+    "entry_exit_split": "description of entry vs exit flow management"
+  },
+  "train_plan": {
+    "normal_frequency": "every 10 minutes",
+    "surge_frequency": "every 4 minutes",
+    "surge_start": "HH:MM",
+    "surge_end": "HH:MM",
+    "extra_coaches": "add 2 extra rakes from depot",
+    "direction_bias": "towards city center / terminus"
+  },
+  "announcements": {
+    "t_minus_60": { "gujarati": "...", "hindi": "...", "english": "..." },
+    "t_minus_30": { "gujarati": "...", "hindi": "...", "english": "..." },
+    "t_zero_event_end": { "gujarati": "...", "hindi": "...", "english": "..." },
+    "t_plus_15_holding": { "gujarati": "...", "hindi": "...", "english": "..." },
+    "t_plus_30_clear": { "gujarati": "...", "hindi": "...", "english": "..." }
+  },
+  "staff_deployment": [
+    { "location": "Station entrance", "count": 4, "role": "Crowd channeling", "time_from": "HH:MM", "time_to": "HH:MM" }
+  ],
+  "escalation_triggers": [
+    { "trigger": "If crowd at gate exceeds 500 people", "action": "Activate holding zone B and call control room" }
+  ],
+  "post_event_clear": {
+    "estimated_clearance_time": "45 minutes",
+    "last_special_train": "HH:MM",
+    "return_to_normal": "HH:MM"
+  }
+}
+
+Make the timeline cover from 60 minutes before event end to
+30 minutes after, in 10-minute intervals (9 entries total).
+
+Make announcements sound authentic, professional and reassuring.
+Gujarati and Hindi must be in their native scripts (not romanized).
+Base crowd dynamics on real metro surge patterns.`;
+    }
+
+    /* ─── 4. LOCAL LLM CALL (OpenAI-compatible: Ollama / LM Studio / llama.cpp) ─── */
+    async function callLocalLLM(prompt, base, model) {
+      let res;
+      try {
+        res = await fetch(base + '/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              { role: 'system', content: 'You are MetroSurge. Respond with a single valid JSON object only — no markdown, no prose.' },
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.7,
+            stream: false,
+            response_format: { type: 'json_object' },
+          }),
+        });
+      } catch (e) {
+        throw new Error('CONN: Could not reach the local model at ' + base + '. Is the server running (e.g. `ollama serve`)?');
+      }
+
+      if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.json())?.error?.message || (await res.text()) || ''; } catch (_) {}
+        if (res.status === 404) throw new Error('MODEL: Endpoint or model "' + model + '" not found (404). Check the model name / `ollama pull ' + model + '`. ' + detail);
+        throw new Error('API: Local model returned ' + res.status + '. ' + detail);
+      }
+
+      const json = await res.json();
+      const text = json?.choices?.[0]?.message?.content;
+      if (!text) throw new Error('EMPTY: The local model returned no content.');
+      return parsePlanJSON(text);
+    }
+
+    // Strip ```json fences and parse
+    function parsePlanJSON(text) {
+      let t = String(text).trim();
+      t = t.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      // fall back to first { … last }
+      if (t[0] !== '{') {
+        const s = t.indexOf('{'), e = t.lastIndexOf('}');
+        if (s !== -1 && e !== -1) t = t.slice(s, e + 1);
+      }
+      try {
+        return JSON.parse(t);
+      } catch (e) {
+        throw new Error('PARSE: The local model returned malformed JSON. Try regenerating or a stronger model.');
+      }
+    }
+
+    /* ─── 3. MAIN GENERATE ─── */
+    async function generatePlan() {
+      // Validate
+      let ok = true;
+      if (!el.eventName.value.trim()) { showError(el.eventName, 'Please enter an event name.'); ok = false; }
+      if (!el.venue.value) { showError(el.venue, 'Please select a venue.'); ok = false; }
+      if (!ok) return;
+
+      const base = getLlmUrl();
+      const model = (el.llmModel.value || '').trim() || DEFAULT_LLM_MODEL;
+      const eventData = collectEventData();
+
+      setLoading(true);
+
+      try {
+        let planData;
+        if (!base) {
+          // No endpoint configured → sample data (full fallback wired in Phase 5)
+          planData = (window.getSamplePlan && window.getSamplePlan(eventData)) || null;
+          if (!planData) throw new Error('CONN: Set a local model endpoint to generate a live plan.');
+          window.__demoMode = true;
+        } else {
+          window.__demoMode = false;
+          const prompt = buildCrowdManagementPrompt(eventData);
+          planData = await callLocalLLM(prompt, base, model);
+        }
+        planData.__event = eventData;
+        try { localStorage.setItem(LS_KEY_PLAN, JSON.stringify(planData)); } catch (_) {}
+        renderPlan(planData);
+      } catch (err) {
+        renderError(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function setLoading(on) {
+      el.generateBtn.disabled = on;
+      el.generateBtn.classList.toggle('opacity-80', on);
+      el.generateBtn.classList.toggle('cursor-wait', on);
+      el.btnSpinner.classList.toggle('hidden', !on);
+      el.btnLabel.textContent = on ? 'Generating Plan…' : '⚡ Generate Crowd Management Plan';
+      if (on && typeof showLoadingCard === 'function') showLoadingCard();
+    }
+
+    /* ─── 5. DEMO PREFILL ─── */
+    function loadDemo() {
+      el.eventName.value = 'Navratri Night 5 - Riverfront';
+      // select Riverfront
+      for (const o of el.venue.options) { if (o.value === 'Riverfront (Sabarmati)') { o.selected = true; break; } }
+      el.venue.dispatchEvent(new Event('change'));
+      el.attendance.value = 85000; renderAttendance();
+      el.endTime.value = '23:00';
+      const fest = el.form.querySelector('input[name="eventType"][value="Navratri / Festival"]');
+      if (fest) fest.checked = true;
+      el.generateBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function escapeHTML(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    /* ═══════════ PHASE 4 — RESULTS DASHBOARD ═══════════ */
+
+    // Keep last plan in scope for action buttons (copy/print/regenerate)
+    let currentPlan = null;
+
+    const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+    const toMin = (hhmm) => { const m = /^(\d{1,2}):(\d{2})/.exec(hhmm || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+
+    const CROWD = {
+      LOW:      { pill: 'bg-ok/20 text-ok border-ok/40',       bar: 'bg-ok' },
+      MEDIUM:   { pill: 'bg-warn/20 text-warn border-warn/40', bar: 'bg-warn' },
+      HIGH:     { pill: 'bg-accent/20 text-accent border-accent/40', bar: 'bg-accent' },
+      CRITICAL: { pill: 'bg-red-500/20 text-red-600 border-red-500/50 animate-pulse', bar: 'bg-red-500' },
+    };
+    const crowd = (lvl) => CROWD[(lvl || '').toUpperCase()] || CROWD.MEDIUM;
+
+    const RISK = {
+      HIGH:   { grad: 'from-red-600 to-red-500',       icon: '⚠️', ring: 'shadow-red-500/30' },
+      MEDIUM: { grad: 'from-orange-600 to-amber-500',  icon: '🟠', ring: 'shadow-accent/30' },
+      LOW:    { grad: 'from-green-600 to-emerald-500', icon: '✅', ring: 'shadow-ok/30' },
+    };
+    const risk = (lvl) => RISK[(lvl || '').toUpperCase()] || RISK.MEDIUM;
+
+    const ANN_TABS = [
+      { key: 't_minus_60',       label: 'T-60 min' },
+      { key: 't_minus_30',       label: 'T-30 min' },
+      { key: 't_zero_event_end', label: 'At Event End' },
+      { key: 't_plus_15_holding',label: 'T+15 Hold' },
+      { key: 't_plus_30_clear',  label: 'T+30 Clear' },
+    ];
+
+    function renderPlan(data) {
+      currentPlan = data;
+      const ev = data.__event || {};
+      const s = data.summary || {};
+      const timeline = Array.isArray(data.timeline) ? data.timeline : [];
+
+      // find current-time entry (closest timeline time <= now, else first)
+      const now = nowMinutes();
+      let currentIdx = -1, best = -Infinity;
+      timeline.forEach((t, i) => { const m = toMin(t.time); if (m != null && m <= now && m > best) { best = m; currentIdx = i; } });
+      if (currentIdx === -1 && timeline.length) currentIdx = 0;
+
+      const rk = risk(s.risk_level);
+
+      const demoBanner = window.__demoMode
+        ? `<div class="mb-4 rounded-lg bg-warn/15 border border-warn/40 text-warn text-sm px-4 py-2.5">⚠️ Demo Mode — Using sample data. Set a local model endpoint for live generation.</div>`
+        : '';
+
+      const html = `
+      <div id="planRoot" class="space-y-6 ms-fade">
+
+        ${demoBanner}
+
+        <!-- ① RISK HEADER -->
+        <div class="rounded-xl overflow-hidden shadow-xl ${rk.ring}">
+          <div class="bg-gradient-to-r ${rk.grad} p-5 text-white ${(s.risk_level||'').toUpperCase()==='HIGH' ? 'ms-pulse' : ''}">
+            <div class="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <div class="flex items-center gap-2 text-2xl font-extrabold tracking-tight">
+                  <span>${rk.icon}</span><span>${escapeHTML(s.risk_level || 'N/A')} RISK</span>
+                </div>
+                <p class="text-white/90 text-sm mt-1">${escapeHTML(ev.eventName || data.event_name || 'Event')}</p>
+              </div>
+              <div class="flex gap-5 text-right">
+                <div><p class="text-xs text-white/70">Peak at station</p><p class="text-lg font-bold">${escapeHTML(s.peak_minute || '—')}</p></div>
+                <div><p class="text-xs text-white/70">Metro trips</p><p class="text-lg font-bold">${escapeHTML(String(s.expected_metro_trips ?? '—'))}</p></div>
+              </div>
+            </div>
+            ${s.key_concern ? `<p class="mt-3 text-sm text-white/95">🎯 ${escapeHTML(s.key_concern)}</p>` : ''}
+          </div>
+          <div class="bg-bg border-t border-borderc p-4">
+            <p class="text-[10px] uppercase tracking-widest text-txt2 mb-1">Control Room Brief</p>
+            <pre class="font-mono text-sm text-txt whitespace-pre-wrap leading-relaxed">${escapeHTML(s.control_room_brief || '—')}</pre>
+          </div>
+        </div>
+
+        <!-- KPI STRIP + LIVE COMMAND CENTER (Phase 6 — filled by injectAdvanced) -->
+        <div id="kpiStrip"></div>
+        <div id="commandCenter"></div>
+
+        <!-- ② TIMELINE -->
+        <div>
+          <h3 class="section-h">🕒 Live Operations Timeline</h3>
+          <div class="space-y-3">
+            ${timeline.map((t, i) => {
+              const c = crowd(t.crowd_level);
+              const active = i === currentIdx;
+              return `
+              <div data-tl-idx="${i}" class="tl-card rounded-xl bg-card border ${active ? 'border-accent ms-glow' : 'border-borderc'} p-4 transition-all">
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                  <div class="flex items-baseline gap-3">
+                    <span class="text-2xl font-extrabold text-accent tabular-nums">${escapeHTML(t.time || '')}</span>
+                    <span class="text-sm text-txt2">${escapeHTML(t.phase || '')}</span>
+                    ${active ? '<span class="text-[10px] font-bold text-accent border border-accent/50 rounded px-1.5 py-0.5">NOW</span>' : ''}
+                  </div>
+                  <span class="text-[11px] font-bold px-2.5 py-1 rounded-full border ${c.pill}">${escapeHTML((t.crowd_level||'').toUpperCase())}</span>
+                </div>
+                <p class="text-sm text-txt mt-2">${escapeHTML(t.action || '')}</p>
+                <div class="flex flex-wrap gap-2 mt-3 text-xs">
+                  <span class="chip">🚇 ${escapeHTML(t.train_frequency || '—')}</span>
+                  <span class="chip">🚪 ${escapeHTML(t.gates || '—')}</span>
+                  <span class="chip">👥 ${escapeHTML(String(t.staff_count ?? '—'))} staff</span>
+                  ${t.holding_zones ? `<span class="chip">🅿️ ${escapeHTML(t.holding_zones)}</span>` : ''}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- ③ ANNOUNCEMENTS -->
+        <div>
+          <h3 class="section-h">📢 Announcement Scripts</h3>
+          <div class="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1" id="annTabs">
+            ${ANN_TABS.map((t, i) => `
+              <button type="button" data-ann-tab="${i}"
+                class="ann-tab whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-lg border transition ${i===0 ? 'bg-accent text-white border-accent' : 'bg-bg text-txt2 border-borderc hover:text-txt'}">
+                ${escapeHTML(t.label)}
+              </button>`).join('')}
+          </div>
+          <div id="annPanels" class="mt-3">
+            ${ANN_TABS.map((t, i) => {
+              const a = (data.announcements && data.announcements[t.key]) || {};
+              return `
+              <div class="ann-panel ms-fade grid grid-cols-1 md:grid-cols-3 gap-3 ${i===0 ? '' : 'hidden'}" data-ann-panel="${i}">
+                ${langCard('🇮🇳 Gujarati', a.gujarati, 'text-base', 'gu-IN')}
+                ${langCard('🇮🇳 Hindi', a.hindi, '', 'hi-IN')}
+                ${langCard('🇬🇧 English', a.english, '', 'en-IN')}
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- ④ GATE & TRAIN -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          ${gatePlanCard(data.gate_plan || {})}
+          ${trainPlanCard(data.train_plan || {})}
+        </div>
+
+        <!-- ⑤ STAFF -->
+        <div>
+          <h3 class="section-h">👮 Staff Deployment</h3>
+          <div class="overflow-x-auto rounded-xl border border-borderc">
+            <table class="w-full text-sm">
+              <thead><tr class="bg-accent text-white text-left">
+                <th class="px-3 py-2 font-semibold">Location</th>
+                <th class="px-3 py-2 font-semibold">Role</th>
+                <th class="px-3 py-2 font-semibold text-center">Staff</th>
+                <th class="px-3 py-2 font-semibold">From</th>
+                <th class="px-3 py-2 font-semibold">To</th>
+              </tr></thead>
+              <tbody>
+                ${(Array.isArray(data.staff_deployment)?data.staff_deployment:[]).map((r,i)=>`
+                  <tr class="${i%2 ? 'bg-bg' : 'bg-card'} border-t border-borderc">
+                    <td class="px-3 py-2 text-txt">${escapeHTML(r.location||'')}</td>
+                    <td class="px-3 py-2 text-txt2">${escapeHTML(r.role||'')}</td>
+                    <td class="px-3 py-2 text-center font-bold text-accent">${escapeHTML(String(r.count??''))}</td>
+                    <td class="px-3 py-2 text-txt2 tabular-nums">${escapeHTML(r.time_from||'')}</td>
+                    <td class="px-3 py-2 text-txt2 tabular-nums">${escapeHTML(r.time_to||'')}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ⑥ ESCALATION -->
+        <div>
+          <h3 class="section-h">⚡ Escalation Triggers</h3>
+          <div class="space-y-2">
+            ${(Array.isArray(data.escalation_triggers)?data.escalation_triggers:[]).map(t=>`
+              <div class="rounded-lg border border-red-500/40 bg-red-500/10 p-3 flex items-start gap-3">
+                <span class="text-lg leading-none mt-0.5">⚡</span>
+                <div class="text-sm">
+                  <p class="text-red-700 font-semibold">IF ${escapeHTML(t.trigger||'')}</p>
+                  <p class="text-txt mt-0.5">→ ${escapeHTML(t.action||'')}</p>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- ⑦ POST-EVENT -->
+        <div>
+          <h3 class="section-h">🏁 Post-Event Summary</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            ${statBox('Clearance Time', (data.post_event_clear||{}).estimated_clearance_time)}
+            ${statBox('Last Special Train', (data.post_event_clear||{}).last_special_train)}
+            ${statBox('Return to Normal', (data.post_event_clear||{}).return_to_normal)}
+          </div>
+        </div>
+
+        <!-- ACTION BUTTONS -->
+        <div class="flex flex-wrap gap-3 pt-2 no-print">
+          <button type="button" id="printBtn" class="flex-1 min-w-[140px] rounded-lg bg-accent2 hover:bg-blue-500 text-white font-medium py-2.5 transition">🖨️ Print Plan</button>
+          <button type="button" id="copyAllBtn" class="flex-1 min-w-[140px] rounded-lg border border-borderc hover:border-accent text-txt font-medium py-2.5 transition">📄 Copy Full Plan</button>
+          <button type="button" id="regenBtn" class="flex-1 min-w-[140px] rounded-lg border border-accent/60 text-accent hover:bg-accent/10 font-medium py-2.5 transition">🔄 Regenerate</button>
+        </div>
+      </div>`;
+
+      el.output.innerHTML = html;
+      wirePlanEvents();
+      el.output.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    /* ─── Section builders ─── */
+    function langCard(title, text, size, lang) {
+      const t = text || '—';
+      return `
+      <div class="rounded-lg bg-bg border border-borderc p-3 flex flex-col">
+        <div class="flex items-center justify-between mb-1.5 gap-2">
+          <span class="text-xs font-semibold text-txt2">${title}</span>
+          <div class="flex items-center gap-2 shrink-0">
+            <button type="button" class="speak-btn text-[11px] text-txt2 hover:text-accent" data-speak="${escapeHTML(t)}" data-lang="${lang}" title="Play announcement">🔊 Play</button>
+            <button type="button" class="copy-btn text-[11px] text-accent hover:text-orange-600" data-copy="${escapeHTML(t)}">📋 Copy</button>
+          </div>
+        </div>
+        <p class="text-txt ${size} leading-relaxed flex-1">${escapeHTML(t)}</p>
+      </div>`;
+    }
+    function chipList(arr, cls) {
+      return (Array.isArray(arr)?arr:[]).map(x=>`<span class="text-xs px-2 py-1 rounded-full border ${cls}">${escapeHTML(x)}</span>`).join('') || '<span class="text-xs text-txt2">—</span>';
+    }
+    function gatePlanCard(g) {
+      return `
+      <div class="rounded-xl bg-card border border-borderc p-4">
+        <h4 class="font-bold text-txt mb-3">🚪 Gate Plan</h4>
+        <p class="text-xs text-txt2 mb-1">Open</p>
+        <div class="flex flex-wrap gap-2 mb-3">${chipList(g.gates_to_open, 'bg-ok/15 text-ok border-ok/40')}</div>
+        <p class="text-xs text-txt2 mb-1">Close</p>
+        <div class="flex flex-wrap gap-2 mb-3">${chipList(g.gates_to_close, 'bg-red-500/15 text-red-600 border-red-500/40')}</div>
+        <p class="text-xs text-txt2 mb-1">Holding zones</p>
+        <div class="flex flex-wrap gap-2 mb-3">${chipList(g.holding_zones, 'bg-accent2/15 text-accent2 border-accent2/40')}</div>
+        ${g.entry_exit_split ? `<p class="text-sm text-txt border-t border-borderc pt-2">↔️ ${escapeHTML(g.entry_exit_split)}</p>` : ''}
+      </div>`;
+    }
+    function trainPlanCard(t) {
+      return `
+      <div class="rounded-xl bg-card border border-borderc p-4">
+        <h4 class="font-bold text-txt mb-3">🚆 Train Plan</h4>
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <div class="rounded-lg bg-bg border border-borderc p-2 text-center">
+            <p class="text-[10px] text-txt2">NORMAL</p><p class="text-sm font-bold text-txt">${escapeHTML(t.normal_frequency||'—')}</p>
+          </div>
+          <div class="rounded-lg bg-accent/15 border border-accent/40 p-2 text-center">
+            <p class="text-[10px] text-accent">SURGE</p><p class="text-sm font-bold text-accent">${escapeHTML(t.surge_frequency||'—')}</p>
+          </div>
+        </div>
+        <div class="text-xs text-txt2 mb-2">Surge window:
+          <span class="text-txt font-medium tabular-nums">${escapeHTML(t.surge_start||'—')} → ${escapeHTML(t.surge_end||'—')}</span>
+        </div>
+        <div class="h-2 rounded-full bg-bg border border-borderc overflow-hidden mb-3"><div class="h-full w-2/3 bg-gradient-to-r from-accent to-amber-400"></div></div>
+        ${t.extra_coaches ? `<p class="text-sm text-txt">➕ ${escapeHTML(t.extra_coaches)}</p>` : ''}
+        ${t.direction_bias ? `<p class="text-sm text-txt2 mt-1">➡️ ${escapeHTML(t.direction_bias)}</p>` : ''}
+      </div>`;
+    }
+    function statBox(label, val) {
+      return `
+      <div class="rounded-xl bg-card border border-borderc p-4 text-center">
+        <p class="text-xs text-txt2 mb-1">${escapeHTML(label)}</p>
+        <p class="text-xl font-extrabold text-accent">${escapeHTML(val || '—')}</p>
+      </div>`;
+    }
+
+    /* ─── Clipboard ─── */
+    async function copyText(text, btn) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (_) {
+        const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch (e) {} ta.remove();
+      }
+      if (btn) {
+        const prev = btn.textContent; btn.textContent = '✓ Copied!';
+        setTimeout(() => { btn.textContent = prev; }, 2000);
+      }
+    }
+
+    function planToText(data) {
+      const s = data.summary || {}, ev = data.__event || {};
+      const L = [];
+      L.push('MetroSurge — Crowd Management Plan');
+      L.push('Event: ' + (ev.eventName || '') + '  |  Venue: ' + (ev.venue || '') + '  |  Station: ' + (ev.nearestStation || ''));
+      L.push('Risk: ' + (s.risk_level || '') + '  |  Peak: ' + (s.peak_minute || '') + '  |  Trips: ' + (s.expected_metro_trips ?? ''));
+      L.push('Key concern: ' + (s.key_concern || ''));
+      L.push('\nCONTROL ROOM BRIEF:\n' + (s.control_room_brief || ''));
+      L.push('\n--- TIMELINE ---');
+      (data.timeline||[]).forEach(t => L.push(`${t.time} [${t.crowd_level}] ${t.phase}: ${t.action} | Trains ${t.train_frequency} | Gates ${t.gates} | Staff ${t.staff_count}`));
+      L.push('\n--- GATE PLAN ---');
+      const g = data.gate_plan||{};
+      L.push('Open: ' + (g.gates_to_open||[]).join(', '));
+      L.push('Close: ' + (g.gates_to_close||[]).join(', '));
+      L.push('Holding: ' + (g.holding_zones||[]).join(', '));
+      L.push('Flow: ' + (g.entry_exit_split||''));
+      L.push('\n--- TRAIN PLAN ---');
+      const tp = data.train_plan||{};
+      L.push(`Normal ${tp.normal_frequency} | Surge ${tp.surge_frequency} (${tp.surge_start}→${tp.surge_end}) | ${tp.extra_coaches||''} | ${tp.direction_bias||''}`);
+      L.push('\n--- ANNOUNCEMENTS ---');
+      ANN_TABS.forEach(tab => { const a=(data.announcements||{})[tab.key]||{}; L.push(`[${tab.label}]`); L.push('GU: '+(a.gujarati||'')); L.push('HI: '+(a.hindi||'')); L.push('EN: '+(a.english||'')); });
+      L.push('\n--- STAFF ---');
+      (data.staff_deployment||[]).forEach(r => L.push(`${r.location} | ${r.role} | ${r.count} staff | ${r.time_from}-${r.time_to}`));
+      L.push('\n--- ESCALATION ---');
+      (data.escalation_triggers||[]).forEach(t => L.push(`IF ${t.trigger} → ${t.action}`));
+      const pe = data.post_event_clear||{};
+      L.push('\n--- POST-EVENT ---');
+      L.push(`Clearance ${pe.estimated_clearance_time} | Last train ${pe.last_special_train} | Normal by ${pe.return_to_normal}`);
+      return L.join('\n');
+    }
+
+    /* ─── Wire up events on freshly-rendered plan ─── */
+    function wirePlanEvents() {
+      const root = document.getElementById('planRoot');
+      if (!root) return;
+
+      // Announcement tabs
+      root.querySelectorAll('[data-ann-tab]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = btn.getAttribute('data-ann-tab');
+          root.querySelectorAll('.ann-tab').forEach(b => {
+            const on = b === btn;
+            b.classList.toggle('bg-accent', on); b.classList.toggle('text-white', on); b.classList.toggle('border-accent', on);
+            b.classList.toggle('bg-bg', !on); b.classList.toggle('text-txt2', !on); b.classList.toggle('border-borderc', !on);
+          });
+          root.querySelectorAll('[data-ann-panel]').forEach(p => {
+            const show = p.getAttribute('data-ann-panel') === idx;
+            p.classList.toggle('hidden', !show);
+            if (show) { p.classList.remove('ms-fade'); void p.offsetWidth; p.classList.add('ms-fade'); }
+          });
+        });
+      });
+
+      // Copy buttons (language cards)
+      root.querySelectorAll('.copy-btn').forEach(b => b.addEventListener('click', () => copyText(b.getAttribute('data-copy'), b)));
+
+      // Voice announcement buttons (Web Speech API)
+      root.querySelectorAll('.speak-btn').forEach(b => b.addEventListener('click', () => speakAnnouncement(b)));
+
+      // Action buttons
+      const printBtn = root.querySelector('#printBtn');
+      const copyAllBtn = root.querySelector('#copyAllBtn');
+      const regenBtn = root.querySelector('#regenBtn');
+      if (printBtn) printBtn.addEventListener('click', () => window.print());
+      if (copyAllBtn) copyAllBtn.addEventListener('click', () => copyText(planToText(currentPlan), copyAllBtn));
+      if (regenBtn) regenBtn.addEventListener('click', () => generatePlan());
+
+      // Phase 6 — inject KPI strip + live command center
+      injectAdvanced(root);
+    }
+
+    /* ═══════════ PHASE 6 — ADVANCED SYSTEM ═══════════ */
+
+    let sim = null;        // active simulation controller
+    let speaking = null;   // currently-speaking button
+
+    const LEVEL_NUM = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
+    const levelNum = (t) => LEVEL_NUM[(t.crowd_level || '').toUpperCase()] || 2;
+    function cssTriplet(name) { return (getComputedStyle(document.documentElement).getPropertyValue(name) || '0 0 0').trim(); }
+    function rgbv(name, a) { const t = cssTriplet(name); return a == null ? `rgb(${t})` : `rgb(${t} / ${a})`; }
+    function levelColor(n) { return n >= 4 ? 'rgb(239 68 68)' : (n === 3 ? rgbv('--c-accent') : n === 2 ? rgbv('--c-warn') : rgbv('--c-ok')); }
+    function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+
+    /* ─── Animated counters ─── */
+    function animateCount(node, to, dur) {
+      to = Number(to) || 0; const start = performance.now();
+      (function tick(now) {
+        const p = Math.min(1, (now - start) / dur);
+        const v = Math.round(to * (1 - Math.pow(1 - p, 3)));
+        node.textContent = v.toLocaleString('en-IN');
+        if (p < 1) requestAnimationFrame(tick);
+      })(start);
+    }
+
+    /* ─── Voice announcements (Web Speech API) ─── */
+    function resetSpeakBtn(btn) { btn.innerHTML = '🔊 Play'; btn.classList.remove('speak-on'); }
+    function speakAnnouncement(btn) {
+      const text = btn.getAttribute('data-speak') || '';
+      const lang = btn.getAttribute('data-lang') || 'en-IN';
+      if (!('speechSynthesis' in window) || !text || text === '—') return;
+      window.speechSynthesis.cancel();
+      if (speaking === btn) { resetSpeakBtn(btn); speaking = null; return; }
+      if (speaking) resetSpeakBtn(speaking);
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang; u.rate = 0.95; u.pitch = 1;
+      const voices = window.speechSynthesis.getVoices() || [];
+      const v = voices.find(x => x.lang === lang) || voices.find(x => x.lang && x.lang.startsWith(lang.split('-')[0]));
+      if (v) u.voice = v;
+      btn.innerHTML = '<span class="sound-bar"></span><span class="sound-bar" style="animation-delay:.15s"></span><span class="sound-bar" style="animation-delay:.3s"></span> Playing';
+      btn.classList.add('speak-on');
+      speaking = btn;
+      u.onend = u.onerror = () => { resetSpeakBtn(btn); if (speaking === btn) speaking = null; };
+      window.speechSynthesis.speak(u);
+    }
+
+    /* ─── Circular crowd-load gauge ─── */
+    function drawGauge(canvas, level) {
+      const dpr = Math.min(2, window.devicePixelRatio || 1), size = 160;
+      canvas.width = size * dpr; canvas.height = size * dpr;
+      const g = canvas.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, size, size);
+      const cx = size / 2, cy = size / 2, r = size / 2 - 16;
+      const a0 = 0.75 * Math.PI, a1 = 2.25 * Math.PI, pct = level / 4;
+      g.lineWidth = 14; g.lineCap = 'round';
+      g.strokeStyle = rgbv('--c-borderc'); g.beginPath(); g.arc(cx, cy, r, a0, a1); g.stroke();
+      g.strokeStyle = levelColor(level); g.beginPath(); g.arc(cx, cy, r, a0, a0 + (a1 - a0) * pct); g.stroke();
+      g.textAlign = 'center';
+      g.fillStyle = rgbv('--c-txt'); g.font = '700 26px ui-sans-serif, system-ui, sans-serif';
+      g.fillText(Math.round(pct * 100) + '%', cx, cy + 4);
+      g.fillStyle = rgbv('--c-txt2'); g.font = '11px ui-sans-serif, system-ui, sans-serif';
+      g.fillText('CROWD LOAD', cx, cy + 22);
+    }
+
+    /* ─── Crowd-level area chart across the timeline ─── */
+    function drawCrowdChart(canvas, timeline, activeIdx) {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const cssW = canvas.clientWidth || canvas.parentElement.clientWidth || 600, cssH = 120;
+      canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+      const g = canvas.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, cssW, cssH);
+      const padL = 30, padR = 10, padT = 10, padB = 18, W = cssW - padL - padR, H = cssH - padT - padB, n = timeline.length;
+      if (!n) return;
+      const xOf = (i) => padL + (n === 1 ? W / 2 : W * i / (n - 1));
+      const yOf = (v) => padT + H * (1 - v / 4);
+      g.lineWidth = 1; g.font = '9px ui-sans-serif, system-ui, sans-serif';
+      ['', 'LOW', 'MED', 'HIGH', 'CRIT'].forEach((lab, v) => {
+        if (!v) return; const y = yOf(v);
+        g.strokeStyle = rgbv('--c-borderc', .6); g.beginPath(); g.moveTo(padL, y); g.lineTo(cssW - padR, y); g.stroke();
+        g.fillStyle = rgbv('--c-txt2'); g.fillText(lab, 2, y + 3);
+      });
+      g.beginPath(); g.moveTo(xOf(0), yOf(levelNum(timeline[0])));
+      for (let i = 1; i < n; i++) g.lineTo(xOf(i), yOf(levelNum(timeline[i])));
+      g.lineTo(xOf(n - 1), padT + H); g.lineTo(xOf(0), padT + H); g.closePath();
+      const grad = g.createLinearGradient(0, padT, 0, padT + H);
+      grad.addColorStop(0, rgbv('--c-accent', .35)); grad.addColorStop(1, rgbv('--c-accent', .02));
+      g.fillStyle = grad; g.fill();
+      g.beginPath(); g.moveTo(xOf(0), yOf(levelNum(timeline[0])));
+      for (let i = 1; i < n; i++) g.lineTo(xOf(i), yOf(levelNum(timeline[i])));
+      g.strokeStyle = rgbv('--c-accent'); g.lineWidth = 2; g.stroke();
+      for (let i = 0; i < n; i++) {
+        const v = levelNum(timeline[i]); g.beginPath(); g.arc(xOf(i), yOf(v), i === activeIdx ? 4.5 : 2.6, 0, 7);
+        g.fillStyle = i === activeIdx ? levelColor(v) : rgbv('--c-accent'); g.fill();
+        if (i === activeIdx) { g.strokeStyle = rgbv('--c-txt'); g.lineWidth = 1.5; g.stroke(); }
+      }
+      g.fillStyle = rgbv('--c-txt2'); g.font = '8px ui-sans-serif, system-ui, sans-serif'; g.textAlign = 'center';
+      const stepL = Math.ceil(n / 6);
+      for (let i = 0; i < n; i += stepL) g.fillText(timeline[i].time || '', xOf(i), cssH - 5);
+      g.textAlign = 'start';
+    }
+
+    /* ─── Station particle schematic ─── */
+    function drawStation(g, w, h, particles, platformX, boarding) {
+      g.clearRect(0, 0, w, h);
+      g.fillStyle = rgbv('--c-borderc', .22); g.fillRect(platformX, 0, w - platformX, h);
+      g.strokeStyle = rgbv('--c-borderc', .5); g.setLineDash([4, 4]);
+      g.beginPath(); g.moveTo(w * 0.36, 0); g.lineTo(w * 0.36, h); g.moveTo(platformX, 0); g.lineTo(platformX, h); g.stroke(); g.setLineDash([]);
+      const trainW = 28;
+      g.fillStyle = boarding ? rgbv('--c-accent') : rgbv('--c-accent', .45);
+      roundRect(g, w - trainW - 4, h / 2 - 28, trainW, 56, 6); g.fill();
+      g.fillStyle = rgbv('--c-card'); g.fillRect(w - trainW - 1, h / 2 - 20, trainW - 6, 7);
+      g.fillStyle = rgbv('--c-txt2', .7); g.fillRect(2, 18, 4, h - 36);
+      for (const p of particles) {
+        g.beginPath(); g.arc(p.x, p.y, 2.3, 0, 7);
+        g.fillStyle = p.x > platformX ? levelColor(4) : (p.x > w * 0.36 ? rgbv('--c-accent') : rgbv('--c-accent2'));
+        g.fill();
+      }
+      g.fillStyle = rgbv('--c-txt2'); g.font = '9px ui-sans-serif, system-ui, sans-serif';
+      g.fillText('ENTRANCE', 10, 13); g.fillText('CONCOURSE', w * 0.39, 13); g.fillText('PLATFORM → TRAIN', platformX + 5, 13);
+    }
+
+    /* ─── Simulation controller ─── */
+    function createSimulation(cc, root, timeline) {
+      const N = timeline.length;
+      const gaugeCanvas = cc.querySelector('#gaugeCanvas');
+      const stationCanvas = cc.querySelector('#stationCanvas');
+      const chartCanvas = cc.querySelector('#crowdChart');
+      const E = {
+        clock: cc.querySelector('#simClock'), phase: cc.querySelector('#simPhase'), crowd: cc.querySelector('#simCrowd'),
+        play: cc.querySelector('#simPlay'), reset: cc.querySelector('#simReset'), scrub: cc.querySelector('#simScrub'), speed: cc.querySelector('#simSpeed'),
+      };
+      let idx = 0, playing = false, speed = Number(E.speed.value) || 2, rafId = 0, stepTimer = 0, trainTimer = 0, last = performance.now();
+      let particles = [];
+      E.scrub.max = String(N - 1);
+
+      function fit(canvas, cssH) {
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        const w = canvas.clientWidth || canvas.parentElement.clientWidth || 300;
+        canvas.width = Math.round(w * dpr); canvas.height = Math.round(cssH * dpr);
+        const g = canvas.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); return g;
+      }
+      let gStation = fit(stationCanvas, 150);
+      const levelOf = (i) => levelNum(timeline[i]);
+      const stW = () => stationCanvas.clientWidth || 300;
+
+      function setIndex(i, scroll) {
+        idx = Math.max(0, Math.min(N - 1, i));
+        const t = timeline[idx];
+        E.clock.textContent = t.time || '--:--';
+        E.phase.textContent = t.phase || '';
+        E.crowd.textContent = (t.crowd_level || '').toUpperCase() + ' crowd';
+        E.scrub.value = String(idx);
+        drawGauge(gaugeCanvas, levelOf(idx));
+        drawCrowdChart(chartCanvas, timeline, idx);
+        root.querySelectorAll('.tl-card').forEach(c => {
+          const on = Number(c.getAttribute('data-tl-idx')) === idx;
+          c.classList.toggle('ms-glow', on); c.classList.toggle('border-accent', on); c.classList.toggle('border-borderc', !on);
+          if (on && scroll) c.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+      }
+
+      function makeDot() { const h = 150; return { x: -4, y: 38 + Math.random() * (h - 66), vx: 0.7 + Math.random() * 0.9 }; }
+      function frame(dt) {
+        let rate = levelOf(idx) * 0.9 * (dt / 16.7);
+        while (rate > 0) { if (Math.random() < rate && particles.length < 500) particles.push(makeDot()); rate -= 1; }
+        const w = stW(), platformX = w * 0.74;
+        for (const p of particles) p.x += p.vx * (dt / 16.7);
+        trainTimer += dt * speed;
+        const interval = 1700 / (levelOf(idx) * 0.6 + 0.6);
+        let boarding = false;
+        if (trainTimer > interval) { trainTimer = 0; boarding = true; }
+        particles = particles.filter(p => !(p.x > platformX && (boarding || p.x > w + 12)));
+        drawStation(gStation, w, 150, particles, platformX, boarding);
+      }
+      function loop(now) {
+        const dt = Math.min(50, now - last); last = now;
+        if (playing) {
+          frame(dt);
+          stepTimer += dt * speed;
+          if (stepTimer > 1800) { stepTimer = 0; if (idx < N - 1) setIndex(idx + 1, true); else pause(); }
+        }
+        rafId = requestAnimationFrame(loop);
+      }
+      function play() { if (idx >= N - 1) { setIndex(0); particles = []; } playing = true; E.play.innerHTML = '⏸ Pause'; }
+      function pause() { playing = false; E.play.innerHTML = '▶ Play'; }
+      function reset() { pause(); particles = []; setIndex(0); drawStation(gStation, stW(), 150, particles, stW() * 0.74, false); }
+
+      E.play.addEventListener('click', () => (playing ? pause() : play()));
+      E.reset.addEventListener('click', reset);
+      E.scrub.addEventListener('input', () => { pause(); setIndex(Number(E.scrub.value), true); });
+      E.speed.addEventListener('change', () => { speed = Number(E.speed.value) || 2; });
+      const onResize = () => { gStation = fit(stationCanvas, 150); setIndex(idx); drawStation(gStation, stW(), 150, particles, stW() * 0.74, false); };
+      window.addEventListener('resize', onResize);
+
+      setIndex(0, false);
+      drawStation(gStation, stW(), 150, particles, stW() * 0.74, false);
+      rafId = requestAnimationFrame(loop);
+
+      return {
+        destroy() { cancelAnimationFrame(rafId); window.removeEventListener('resize', onResize); },
+        redraw() { gStation = fit(stationCanvas, 150); setIndex(idx, false); drawStation(gStation, stW(), 150, particles, stW() * 0.74, false); },
+      };
+    }
+
+    /* ─── Inject KPI strip + command center into a rendered plan ─── */
+    function injectAdvanced(root) {
+      if (sim) { sim.destroy(); sim = null; }
+      try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
+      speaking = null;
+      const data = currentPlan; if (!data) return;
+      const timeline = Array.isArray(data.timeline) ? data.timeline : [];
+      const ev = data.__event || {}, s = data.summary || {};
+
+      // KPI strip
+      const peakStaff = timeline.length ? Math.max(0, ...timeline.map(t => Number(t.staff_count) || 0)) : 0;
+      const kpis = [
+        { label: 'Expected Attendance', val: ev.attendance || 0 },
+        { label: 'Metro Trips', val: s.expected_metro_trips || 0 },
+        { label: 'Peak Staff Deployed', val: peakStaff },
+        { label: 'Escalation Triggers', val: (data.escalation_triggers || []).length },
+      ];
+      const kpiStrip = root.querySelector('#kpiStrip');
+      if (kpiStrip) {
+        kpiStrip.className = 'grid grid-cols-2 lg:grid-cols-4 gap-3';
+        kpiStrip.innerHTML = kpis.map(k => `
+          <div class="rounded-xl bg-card border border-borderc p-4">
+            <p class="text-xs text-txt2">${escapeHTML(k.label)}</p>
+            <p class="text-2xl font-extrabold text-accent mt-1 tabular-nums" data-count="${k.val}">0</p>
+          </div>`).join('');
+        kpiStrip.querySelectorAll('[data-count]').forEach(n => animateCount(n, n.getAttribute('data-count'), 1100));
+      }
+
+      // Command center (needs a timeline)
+      const cc = root.querySelector('#commandCenter');
+      if (!cc || !timeline.length) return;
+      cc.className = 'rounded-xl bg-card border border-borderc overflow-hidden';
+      cc.innerHTML = `
+        <div class="flex items-center justify-between px-4 py-2.5 border-b border-borderc">
+          <h3 class="font-bold flex items-center gap-2"><span class="live-dot"></span> Live Operations Simulator</h3>
+          <span id="simClock" class="font-mono text-base text-accent font-bold tabular-nums">--:--</span>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-4 p-4">
+          <div class="flex flex-col items-center justify-center">
+            <canvas id="gaugeCanvas" style="width:160px;height:160px;"></canvas>
+            <p id="simPhase" class="text-sm font-semibold text-center mt-1 text-txt">—</p>
+            <p id="simCrowd" class="text-xs text-txt2">—</p>
+          </div>
+          <div>
+            <canvas id="stationCanvas" class="sim-canvas"></canvas>
+            <div class="flex items-center gap-2 mt-3 flex-wrap">
+              <button id="simPlay" type="button" class="rounded-lg bg-accent hover:bg-orange-400 text-white px-4 py-2 text-sm font-semibold transition">▶ Play</button>
+              <button id="simReset" type="button" class="rounded-lg border border-borderc hover:border-accent px-3 py-2 text-sm transition" title="Reset">⟲</button>
+              <input id="simScrub" type="range" min="0" max="1" value="0" class="sim-scrub flex-1 min-w-[120px] cursor-pointer" />
+              <select id="simSpeed" class="rounded-lg bg-bg border border-borderc text-xs px-2 py-1.5 text-txt">
+                <option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="px-4 pb-4">
+          <p class="text-xs text-txt2 mb-1">📈 Crowd level across the timeline</p>
+          <canvas id="crowdChart" style="width:100%;height:120px;"></canvas>
+        </div>`;
+      sim = createSimulation(cc, root, timeline);
+    }
+
+    /* ─── Theme toggle ─── */
+    function applyTheme(dark) {
+      document.documentElement.classList.toggle('dark', dark);
+      const b = document.getElementById('themeToggle');
+      if (b) b.textContent = dark ? '☀️' : '🌙';
+      try { localStorage.setItem('metrosurge_theme', dark ? 'dark' : 'light'); } catch (_) {}
+      if (sim) sim.redraw();
+    }
+    (function initTheme() {
+      const b = document.getElementById('themeToggle');
+      if (!b) return;
+      b.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+      b.addEventListener('click', () => applyTheme(!document.documentElement.classList.contains('dark')));
+    })();
+
+    function renderError(err) {
+      // Upgraded error UI arrives in Phase 5; basic card for now.
+      const msg = String((err && err.message) || err);
+      el.output.innerHTML =
+        '<div class="rounded-xl bg-card border border-red-500/50 p-6 ms-fade">' +
+        '<p class="text-red-600 font-semibold mb-1">⚠️ ' + escapeHTML(msg) + '</p>' +
+        '<p class="text-xs text-txt2">Check your inputs / API key and try again.</p></div>';
+    }
+
+    /* ═══════════ PHASE 5 — POLISH ═══════════ */
+
+    /* 1. LOADING CARD (rotating messages + progress bar) */
+    const LOAD_MSGS = [
+      'Analyzing crowd patterns…',
+      'Calculating train frequencies…',
+      'Generating Gujarati announcements…',
+      'Building gate deployment plan…',
+      'Finalizing escalation protocols…',
+    ];
+    let loadTimer = null, progTimer = null;
+    function showLoadingCard() {
+      clearInterval(loadTimer); clearInterval(progTimer);
+      el.output.innerHTML = `
+      <div class="rounded-xl bg-card border border-borderc p-10 min-h-[420px] flex flex-col items-center justify-center text-center ms-fade">
+        <div class="text-6xl mb-5 ms-pulse">🚇</div>
+        <p id="loadMsg" class="text-txt font-medium">${LOAD_MSGS[0]}</p>
+        <div class="w-64 h-2 rounded-full bg-bg border border-borderc overflow-hidden mt-5">
+          <div id="loadBar" class="h-full bg-accent transition-all duration-300 ease-out" style="width:6%"></div>
+        </div>
+        <p class="text-xs text-txt2 mt-3">MetroSurge is thinking…</p>
+      </div>`;
+      let i = 0;
+      loadTimer = setInterval(() => {
+        i = (i + 1) % LOAD_MSGS.length;
+        const m = document.getElementById('loadMsg');
+        if (m) { m.classList.remove('ms-fade'); void m.offsetWidth; m.textContent = LOAD_MSGS[i]; m.classList.add('ms-fade'); }
+      }, 1500);
+      let p = 6;
+      progTimer = setInterval(() => {
+        p = Math.min(90, p + Math.random() * 9 + 2);
+        const bar = document.getElementById('loadBar'); if (bar) bar.style.width = p + '%';
+      }, 400);
+    }
+    function finishLoadingBar() {
+      clearInterval(loadTimer); clearInterval(progTimer);
+      const bar = document.getElementById('loadBar'); if (bar) bar.style.width = '100%';
+    }
+
+    /* 2. RICH ERROR UI (keyed off error prefixes) + Retry */
+    renderError = function (err) {
+      finishLoadingBar();
+      const raw = String((err && err.message) || err);
+      const code = (raw.split(':')[0] || '').trim().toUpperCase();
+      let title = 'Something went wrong', body = raw, extra = '';
+      if (code === 'CONN') {
+        title = 'Local model not reachable';
+        body = raw.replace(/^[A-Z_]+:\s*/, '');
+        extra = `<span class="text-txt2">Start it with <span class="font-mono text-accent">ollama serve</span>, then set the endpoint in <span class="font-mono">Local Model Settings</span>. CORS: run Ollama with <span class="font-mono">OLLAMA_ORIGINS=*</span>.</span>`;
+      } else if (code === 'MODEL') {
+        title = 'Model not found';
+        body = raw.replace(/^[A-Z_]+:\s*/, '');
+        extra = `<span class="text-txt2">Pull it first, e.g. <span class="font-mono text-accent">ollama pull qwen2.5:7b</span>.</span>`;
+      } else if (code === 'PARSE' || code === 'EMPTY') {
+        title = 'Could not read the plan';
+        body = raw.replace(/^[A-Z_]+:\s*/, '');
+      } else if (code === 'API') {
+        title = 'Local model error';
+        body = raw.replace(/^[A-Z_]+:\s*/, '');
+      }
+      el.output.innerHTML = `
+      <div class="rounded-xl bg-card border border-red-500/50 p-6 ms-fade">
+        <div class="flex items-start gap-3">
+          <span class="text-2xl">⚠️</span>
+          <div class="flex-1">
+            <p class="text-red-600 font-semibold">${escapeHTML(title)}</p>
+            <p class="text-sm text-txt2 mt-1">${escapeHTML(body)}</p>
+            ${extra ? `<p class="text-sm mt-2">${extra}</p>` : ''}
+            <button type="button" id="retryBtn" class="mt-4 rounded-lg bg-accent hover:bg-orange-400 text-white font-medium px-4 py-2 text-sm transition">🔄 Retry</button>
+          </div>
+        </div>
+      </div>`;
+      const rb = document.getElementById('retryBtn');
+      if (rb) rb.addEventListener('click', () => generatePlan());
+    };
+
+    // Ensure progress bar completes before the plan renders over it
+    (function () {
+      const _render = renderPlan;
+      renderPlan = function (data) { finishLoadingBar(); _render(data); };
+    })();
+
+    /* 3. SAMPLE PLAN FALLBACK (works with no API key / offline) */
+    window.getSamplePlan = function (ev) {
+      const ann = (gu, hi, en) => ({ gujarati: gu, hindi: hi, english: en });
+      return {
+        summary: {
+          risk_level: 'HIGH',
+          peak_minute: '23:20',
+          expected_metro_trips: 46,
+          key_concern: 'Simultaneous surge of ~85,000 festival-goers toward Kalupur within 30 minutes of event close.',
+          control_room_brief:
+            'HIGH surge expected 23:00–23:40 at Riverfront → Kalupur/Dariapur.\n' +
+            'Run 4-min headway, open Gates 1/3/5, hold overflow at Concourse A.\n' +
+            'Escalate to control room if any gate queue exceeds 500.',
+        },
+        timeline: [
+          { time: '22:00', phase: 'Pre-surge staging', action: 'Position staff, open holding zones, brief gate marshals.', gates: 'Open Gate 1 & 3', train_frequency: 'every 10 min', holding_zones: 'Concourse A', staff_count: 12, crowd_level: 'LOW' },
+          { time: '22:10', phase: 'Early trickle', action: 'Begin directing early leavers to platforms. Start PA T-60.', gates: 'Open Gate 1 & 3', train_frequency: 'every 10 min', holding_zones: 'Concourse A', staff_count: 14, crowd_level: 'LOW' },
+          { time: '22:20', phase: 'Build-up', action: 'Increase train frequency. Deploy channeling barriers.', gates: 'Open Gate 1, 3 & 5', train_frequency: 'every 8 min', holding_zones: 'Concourse A, Platform 2 buffer', staff_count: 20, crowd_level: 'MEDIUM' },
+          { time: '22:30', phase: 'Pre-close ramp', action: 'All surge trains staged at depot. PA T-30 announcement.', gates: 'Open Gate 1, 3 & 5', train_frequency: 'every 6 min', holding_zones: 'Concourse A, Platform 2 buffer', staff_count: 26, crowd_level: 'MEDIUM' },
+          { time: '22:50', phase: 'Event ending', action: 'Event concluding. Activate full surge mode. Close parking-side gate.', gates: 'Close Gate 2; keep 1,3,5 open', train_frequency: 'every 4 min', holding_zones: 'Concourse A, Platform 2, Forecourt', staff_count: 34, crowd_level: 'HIGH' },
+          { time: '23:00', phase: 'Peak surge', action: 'Maximum inflow. Meter entry via holding zones. All hands on deck.', gates: 'Metered entry at 1,3,5', train_frequency: 'every 4 min', holding_zones: 'All zones active', staff_count: 40, crowd_level: 'CRITICAL' },
+          { time: '23:10', phase: 'Sustained peak', action: 'Hold-and-release batches of ~300 to platform. Monitor crush points.', gates: 'Metered entry', train_frequency: 'every 4 min', holding_zones: 'All zones active', staff_count: 40, crowd_level: 'CRITICAL' },
+          { time: '23:20', phase: 'Peak crest', action: 'Crowd crest at station. Keep platform density under control.', gates: 'Metered entry', train_frequency: 'every 4 min', holding_zones: 'All zones active', staff_count: 38, crowd_level: 'CRITICAL' },
+          { time: '23:30', phase: 'Wind-down', action: 'Flow easing. Begin releasing holding zones. Plan last trains.', gates: 'Reopen full entry', train_frequency: 'every 6 min', holding_zones: 'Concourse A', staff_count: 24, crowd_level: 'HIGH' },
+        ],
+        gate_plan: {
+          gates_to_open: ['Gate 1 - Main', 'Gate 3 - North', 'Gate 5 - Riverfront side'],
+          gates_to_close: ['Gate 2 - Parking side'],
+          holding_zones: ['Concourse Level A', 'Platform 2 Buffer Zone', 'Station Forecourt'],
+          entry_exit_split: 'Dedicate Gates 1 & 3 for entry (into station), Gate 5 as exit-only for arriving passengers to prevent counterflow at the concourse.',
+        },
+        train_plan: {
+          normal_frequency: 'every 10 minutes',
+          surge_frequency: 'every 4 minutes',
+          surge_start: '22:50',
+          surge_end: '23:30',
+          extra_coaches: 'Add 2 extra rakes from Apparel Park depot; pre-stage at Kalupur.',
+          direction_bias: 'Towards city centre (Thaltej & APMC lines) — ~70% of load.',
+        },
+        announcements: {
+          t_minus_60: ann(
+            'ધ્યાન આપો. કાર્યક્રમ પૂર્ણ થવાના આશરે એક કલાક પહેલાં છે. કૃપા કરીને વ્યવસ્થિત રીતે મેટ્રો તરફ આગળ વધો અને સૂચનાઓનું પાલન કરો.',
+            'कृपया ध्यान दें। कार्यक्रम समाप्त होने में लगभग एक घंटा शेष है। कृपया व्यवस्थित रूप से मेट्रो की ओर बढ़ें और निर्देशों का पालन करें।',
+            'Attention please. The event ends in about one hour. Kindly move towards the metro in an orderly manner and follow staff instructions.'
+          ),
+          t_minus_30: ann(
+            'પ્રિય મુસાફરો, કાર્યક્રમ અડધા કલાકમાં પૂર્ણ થશે. વધારાની ટ્રેનો તૈયાર છે. કૃપા કરીને ઉતાવળ ન કરો, દરેક માટે ટ્રેન ઉપલબ્ધ છે.',
+            'प्रिय यात्रियों, कार्यक्रम आधे घंटे में समाप्त होगा। अतिरिक्त ट्रेनें तैयार हैं। कृपया जल्दबाज़ी न करें, सभी के लिए ट्रेन उपलब्ध है।',
+            'Dear passengers, the event ends in thirty minutes. Additional trains are ready. Please do not rush — there are trains for everyone.'
+          ),
+          t_zero_event_end: ann(
+            'કાર્યક્રમ પૂર્ણ થયો છે. કૃપા કરીને શાંતિથી અને વ્યવસ્થિત રીતે નજીકના દરવાજા તરફ આગળ વધો. દર ચાર મિનિટે ટ્રેન ઉપલબ્ધ છે.',
+            'कार्यक्रम समाप्त हो गया है। कृपया शांति से और व्यवस्थित रूप से निकटतम द्वार की ओर बढ़ें। हर चार मिनट में ट्रेन उपलब्ध है।',
+            'The event has ended. Please proceed calmly and in an orderly manner to the nearest gate. Trains are available every four minutes.'
+          ),
+          t_plus_15_holding: ann(
+            'ભીડ વ્યવસ્થાપન માટે અમે તમને થોડી ક્ષણો હોલ્ડિંગ ઝોનમાં રોકી રહ્યા છીએ. તમારી સલામતી અમારી પ્રાથમિકતા છે. કૃપા કરીને સહકાર આપો.',
+            'भीड़ प्रबंधन के लिए हम आपको कुछ क्षण होल्डिंग ज़ोन में रोक रहे हैं। आपकी सुरक्षा हमारी प्राथमिकता है। कृपया सहयोग करें।',
+            'For crowd management we are briefly holding passengers in the holding zone. Your safety is our priority. Please cooperate with staff.'
+          ),
+          t_plus_30_clear: ann(
+            'ભીડ હવે ઓછી થઈ રહી છે. બધા મુસાફરોનો આભાર. છેલ્લી વિશેષ ટ્રેન 00:15 વાગ્યે ઉપડશે. સલામત મુસાફરી.',
+            'भीड़ अब कम हो रही है। सभी यात्रियों का धन्यवाद। अंतिम विशेष ट्रेन 00:15 बजे रवाना होगी। सुरक्षित यात्रा।',
+            'Crowds are now easing. Thank you to all passengers. The last special train departs at 00:15. Have a safe journey.'
+          ),
+        },
+        staff_deployment: [
+          { location: 'Station entrance (Gate 1)', count: 8, role: 'Crowd channeling', time_from: '22:30', time_to: '23:45' },
+          { location: 'Concourse Level A', count: 10, role: 'Holding zone control', time_from: '22:45', time_to: '23:40' },
+          { location: 'Platform 1 & 2', count: 12, role: 'Platform density & boarding', time_from: '22:50', time_to: '23:45' },
+          { location: 'Gate 5 (exit)', count: 6, role: 'Counterflow prevention', time_from: '22:50', time_to: '23:30' },
+          { location: 'Control room', count: 4, role: 'Monitoring & escalation', time_from: '22:00', time_to: '00:15' },
+        ],
+        escalation_triggers: [
+          { trigger: 'crowd at any gate exceeds 500 people', action: 'Activate holding zone B and call control room; meter entry immediately.' },
+          { trigger: 'platform density crosses 4 persons/m²', action: 'Pause inflow from concourse, dispatch next train early, announce T+15 holding message.' },
+          { trigger: 'any medical or crush incident reported', action: 'Halt the affected gate, open emergency lane, dispatch first-aid team and notify station controller.' },
+        ],
+        post_event_clear: {
+          estimated_clearance_time: '45 minutes',
+          last_special_train: '00:15',
+          return_to_normal: '00:30',
+        },
+        __event: ev || { eventName: 'Navratri Night 5 - Riverfront', venue: 'Riverfront (Sabarmati)', nearestStation: 'Kalupur / Dariapur' },
+      };
+    };
+
+    /* 6. MICRO-INTERACTION: ripple on generate button */
+    el.generateBtn.addEventListener('click', function (e) {
+      const r = this.getBoundingClientRect();
+      const d = Math.max(r.width, r.height);
+      const span = document.createElement('span');
+      span.className = 'ms-ripple';
+      span.style.width = span.style.height = d + 'px';
+      span.style.left = (e.clientX - r.left - d / 2) + 'px';
+      span.style.top = (e.clientY - r.top - d / 2) + 'px';
+      this.appendChild(span);
+      setTimeout(() => span.remove(), 600);
+    });
+
+    /* 7. LOAD LAST PLAN button (if a saved plan exists) */
+    (function initLastPlan() {
+      const saved = localStorage.getItem(LS_KEY_PLAN);
+      if (!saved) return;
+      const btn = document.createElement('div');
+      btn.className = 'mb-4';
+      btn.innerHTML = `<button type="button" id="loadLastBtn" class="w-full rounded-lg border border-accent2/50 text-accent2 hover:bg-accent2/10 font-medium py-2 text-sm transition">📂 Load Last Plan</button>`;
+      el.output.prepend(btn);
+      btn.querySelector('#loadLastBtn').addEventListener('click', () => {
+        try { window.__demoMode = false; renderPlan(JSON.parse(saved)); } catch (_) {}
+      });
+    })();
+
+    /* 4. Print timestamp */
+    window.addEventListener('beforeprint', () => {
+      const ts = document.getElementById('printTimestamp');
+      if (ts) ts.textContent = new Date().toLocaleString('en-IN');
+    });
+
+    /* ═══════════ BONUS — JUDGE DEMO MODE ═══════════ */
+
+    function showDemoBanner() {
+      const old = document.getElementById('demoBanner'); if (old) old.remove();
+      const b = document.createElement('div');
+      b.id = 'demoBanner';
+      b.className = 'fixed bottom-4 right-4 z-50 rounded-lg bg-accent text-white text-sm font-semibold px-4 py-2 shadow-xl ms-fade';
+      b.textContent = '🎬 Demo Mode Active';
+      document.body.appendChild(b);
+      setTimeout(() => { b.style.transition = 'opacity .6s'; b.style.opacity = '0'; }, 2600);
+      setTimeout(() => b.remove(), 3300);
+    }
+
+    function runJudgeDemo() {
+      loadDemo();                 // auto-fill Navratri data
+      showDemoBanner();
+      setTimeout(() => generatePlan(), 1000);   // dramatic pause, then generate
+    }
+
+    function resetForm() {
+      el.form.reset();
+      // keep saved local-model settings
+      el.llmUrl.value = localStorage.getItem(LS_KEY_URL) || (window.LOCAL_LLM_URL || DEFAULT_LLM_URL);
+      el.llmModel.value = localStorage.getItem(LS_KEY_MODEL) || (window.LOCAL_LLM_MODEL || DEFAULT_LLM_MODEL);
+      el.customWrap.classList.add('hidden');
+      clearError(el.eventName); clearError(el.venue);
+      renderAttendance();
+      el.output.innerHTML = `
+        <div class="rounded-xl bg-card border border-borderc p-10 min-h-[420px] flex flex-col items-center justify-center text-center">
+          <span class="text-5xl mb-4 opacity-80">🚇</span>
+          <h2 class="text-lg font-semibold text-txt">No plan generated yet</h2>
+          <p class="text-sm text-txt2 mt-2 max-w-sm">Fill in the event details on the left and hit
+            <span class="text-accent font-medium">Generate Crowd Management Plan</span> to see a full control-room surge plan here.</p>
+        </div>`;
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (!(e.ctrlKey && e.shiftKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'd') { e.preventDefault(); runJudgeDemo(); }
+      else if (k === 'p') { e.preventDefault(); window.print(); }
+      else if (k === 'r') { e.preventDefault(); resetForm(); }
+    });
+
+    window.MetroSurge.runJudgeDemo = runJudgeDemo;
+    window.MetroSurge.resetForm = resetForm;
+
+    /* ─── EVENTS ─── */
+    el.form.addEventListener('submit', (e) => { e.preventDefault(); generatePlan(); });
+    el.demoBtn.addEventListener('click', loadDemo);
+
+    /* ─── EXPOSE for later phases / shortcuts ─── */
+    window.MetroSurge = { generatePlan, loadDemo, collectEventData, buildCrowdManagementPrompt, callLocalLLM };
+  })();
+  </script>
+
+</body>
+</html>

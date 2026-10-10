@@ -1,0 +1,41 @@
+# ─── Local / per-machine config ───
+# config.js holds your local LLM endpoint & model (not committed).
+config.js
+metro-surge/config.js
+.env
+.env.*
+!.env.example
+
+# ─── OS cruft ───
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ─── Editors / IDEs ───
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+
+# ─── Node (if any tooling is added later) ───
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ─── Logs & temp ───
+*.log
+tmp/
+.cache/
+
+# ─── Keep ───
+# assets/ (GMRC logo) and config.example.js ARE committed.
+
+# stray scratch file that held a secret
+temp.txt
